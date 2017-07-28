@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Politics</title>
+<style>
+@font-face
+{
+    font-family: font;
+    src: url(font.ttf);
+}
+
+body
+{
+    background-color: black;
+    color: white;
+    font-family: font;
+    font-size: 10px;
+}
+
+</style>
+</head>
+<body>
+<script src = "color.js"></script>
+<script src = "consoleFunctions.js"></script>
+<script src = "cat.js"></script>
+<script>
+/*
+individual elections are both data and behavior
+they should conform to this interface
+define an object named "election" which contains fields
+* playerName
+* opponentName
+* regionName
+* positionName
+* daysLong
+* playerStartPercent
+* winPercent
+
+object should contain these methods
+* string[] getTurnActions(day, playerPercent, event) - return is internal name for actions. Event may be null.
+* string getCurrentEvent(day, playerPercent, pastEvents[]) - return null for no events, else string internal name
+* void onTurnAction(action, day, playerPercent, event, terminal) - print out information (e.g. result of act), adjust variables
+*/
+
+var terminal = new Terminal(document.body);
+
+var playerPercent = null;
+var day = -1;
+var currentEvent = null;
+
+var dayColor = new Color(82, 168, 255);
+var factColor = new Color(255, 149, 0);
+var percentColor = new Color(187, 0, 255);
+var playerPercentColor = new Color(255, 238, 0);
+
+var pastEvents = [];
+
+function percentAsString(percent)
+{
+    return (percent*100).toFixed(1) + "%";
+}
+
+function getSingleOptionSet(string, onSelect)
+{
+    var options = 
+    [
+        new Option(string, [], 0)
+    ];
+
+    var set = new OptionSet(options, function() {onSelect();});
+
+    return set;
+}
+
+function gameover()
+{
+    var percentStr = percentAsString(playerPercent);
+    var winBy = percentAsString(playerPercent - election.winPercent);
+
+    var color = Color.WHITE;
+
+    if (playerPercent > election.winPercent)
+        color = Color.GREEN;
+    else if (playerPercent < election.winPercent)
+        color = Color.RED;
+
+
+    if (playerPercent >= election.winPercent)
+        terminal.printColoredText("Congratulations! You won the election with a share of `" + percentStr + "`, winning by `" + winBy + "`.", [playerPercentColor, Color.WHITE, color, Color.WHITE]);
+    else
+        terminal.printColoredText("Bummer! You have lost the election with a share of `" + percentStr + "`, losing by `" + winBy + "`.", [playerPercentColor, Color.WHITE, color, Color.WHITE]);
+
+    setTimeout(function()
+    {
+        var set = getSingleOptionSet("Play Again", function()
+        {
+            location.reload();
+        });
+
+        terminal.printBlank(1);
+
+        terminal.printSet(set);
+    }, 1000*3);
+}
+
+function turn()
+{
+    var previousPercent = playerPercent;
+
+    terminal.clear();
+
+    ++day;
+
+    if (day == election.daysLong)
+    {
+        gameover();
+
+        return;
+    }
+
+    var dayPercent = day/election.daysLong;
+
+    var hsvColor = new HSVColor(130 - dayPercent*130, 1, 1);
+
+    var rgbColor = hsvColor.toRGBColor();
+
+    terminal.printColoredText("`" + (election.daysLong - day) + "` days until the election.", [rgbColor, Color.WHITE]);
+
+    currentEvent = election.getCurrentEvent();
+
+    if (currentEvent != null)
+    {
+        terminal.printBlank(1);
+
+        election.outputEventInformation();
+
+        terminal.printBlank(1);
+    }
+
+    var optionData = election.getTurnActions();
+
+    var options = [];
+
+    for (var i = 0; i < optionData.length; ++i)
+    {
+        var option = optionData[i];
+
+        if (option.colors === undefined)
+            option.colors = [];
+
+        options.push(new Option(option.text, option.colors, option.name));
+    }
+
+    var set = new OptionSet(options, function(result)
+    {
+        terminal.clear();
+
+        var printed = election.onTurnAction(result);
+
+        if (playerPercent < 0)
+            playerPercent = 0;
+
+        if (playerPercent > 1)
+            playerPercent = 1;
+
+        if (printed !== false)
+            printed = true;
+
+        if (printed)
+            terminal.printBlank(1);
+
+        if (currentEvent != null)
+            pastEvents.push(currentEvent);
+
+        currentEvent = null;
+
+        var percentChange = playerPercent - previousPercent;
+
+        var color = Color.WHITE;
+
+        if (percentChange > 0)
+            color = Color.GREEN;
+        else if (percentChange < 0)
+            color = Color.RED;
+
+        terminal.printColoredText("Your current share is` " + percentAsString(playerPercent) + "`, a change of `" + percentAsString(percentChange) + "`.", [playerPercentColor, Color.WHITE, color, Color.WHITE]);
+
+        var set2 = getSingleOptionSet("Ok", function()
+        {
+            turn();
+        });
+
+        terminal.printSet(set2);
+    });
+
+    terminal.printBlank(1);
+    terminal.printSet(set);
+}
+
+function start()
+{
+    election.init();
+
+    playerPercent = election.playerStartPercent;
+
+    terminal.printColoredText("Welcome, `" + election.playerName + "`! Can you beat `" + election.opponentName + "` and become `" + election.positionName + "` of `" + election.regionName + "`?", [factColor, Color.WHITE, factColor, Color.WHITE, factColor, Color.WHITE, factColor, Color.WHITE]);
+    terminal.printColoredText("The election is in `" + election.daysLong + "` days. To win, you must have `" + percentAsString(election.winPercent) + " `of the popular votes. Right now you hold a `" + percentAsString(playerPercent) + "` share.", [dayColor, Color.WHITE, percentColor, Color.WHITE, percentColor, Color.WHITE]);
+
+    terminal.printBlank(1);
+
+    election.outputElectionInformation();
+
+    terminal.printBlank(1);
+
+    var set = getSingleOptionSet("Begin", turn);
+
+    terminal.printSet(set);
+}
+
+start();
+</script>
+</body>
+</html>
